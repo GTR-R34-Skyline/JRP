@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Phone, Mail, MapPin, FileText, Upload, CheckCircle } from 'lucide-react';
+import { User, Phone, Mail, MapPin, FileText, Upload, CheckCircle, DollarSign, Image } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const VendorRegistration: React.FC = () => {
@@ -12,7 +12,10 @@ const VendorRegistration: React.FC = () => {
     specialties: [] as string[],
     languages: [] as string[],
     experience_years: '',
-    location: ''
+    location: '',
+    cost_per_day: '', // Added missing field
+    cost_per_hour: '', // Added missing field
+    profile_image_url: '' // Added missing field
   });
   
   const [loading, setLoading] = useState(false);
@@ -41,7 +44,7 @@ const VendorRegistration: React.FC = () => {
     setError('');
 
     try {
-      // Trim string fields before submitting to prevent whitespace issues
+      // Create a clean data object for submission
       const applicationData = {
         name: formData.name.trim(),
         email: formData.email.trim(),
@@ -52,6 +55,9 @@ const VendorRegistration: React.FC = () => {
         languages: formData.languages,
         experience_years: formData.experience_years ? parseInt(formData.experience_years) : null,
         location: formData.location.trim(),
+        cost_per_day: formData.cost_per_day ? parseFloat(formData.cost_per_day) : null,
+        cost_per_hour: formData.cost_per_hour ? parseFloat(formData.cost_per_hour) : null,
+        profile_image_url: formData.profile_image_url.trim(),
         status: 'pending'
       };
 
@@ -111,6 +117,7 @@ const VendorRegistration: React.FC = () => {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* ... other form fields ... */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <User className="w-4 h-4 inline mr-2" />
@@ -205,6 +212,59 @@ const VendorRegistration: React.FC = () => {
                 placeholder="5"
               />
             </div>
+
+            {/* ** NEW REQUIRED FIELDS ** */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <DollarSign className="w-4 h-4 inline mr-2" />
+                Cost Per Day
+              </label>
+              <input
+                type="number"
+                name="cost_per_day"
+                min="0"
+                step="0.01"
+                value={formData.cost_per_day}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                placeholder="e.g., 2500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <DollarSign className="w-4 h-4 inline mr-2" />
+                Cost Per Hour
+              </label>
+              <input
+                type="number"
+                name="cost_per_hour"
+                min="0"
+                step="0.01"
+                value={formData.cost_per_hour}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                placeholder="e.g., 400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Image className="w-4 h-4 inline mr-2" />
+                Profile Image URL
+              </label>
+              <input
+                type="url"
+                name="profile_image_url"
+                required
+                value={formData.profile_image_url}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                placeholder="https://example.com/image.jpg"
+              />
+            </div>
+
+            {/* ... end of new fields ... */}
           </div>
 
           <div>
