@@ -6,6 +6,7 @@ import VendorRegistration from './components/VendorRegistration';
 import VendorDashboard from './components/VendorDashboard';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
+import MarketplaceRegistration from './components/MarketplaceRegistration';
 
 // Homepage Component
 const HomePage = () => (
@@ -99,6 +100,9 @@ function App() {
         <Route path="/vendor/register" element={<div className="py-8"><VendorRegistration /></div>} />
         <Route path="/vendor/dashboard" element={<div className="py-8"><VendorDashboard /></div>} />
         <Route path="/admin/login" element={<AdminLogin onLogin={handleAdminLogin} />} />
+        <Route path="/marketplace/register"   element={<div className="py-8"><MarketplaceRegistration /></div>} 
+/>
+
 
         {/* Protected Admin Route */}
         <Route 

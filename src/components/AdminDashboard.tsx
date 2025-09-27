@@ -30,42 +30,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   }, []);
 
   // --- RESTORED FETCHDATA FUNCTION ---
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      // Fetch vendor applications (pending, approved, rejected)
-      const { data: applicationData, error: applicationError } = await supabase
-        .from('vendor_applications')
-        .select('*')
-        .order('created_at', { ascending: false });
+  const [marketplaceItems, setMarketplaceItems] = useState<any[]>([]);
 
-      if (applicationError) throw applicationError;
+const fetchData = async () => {
+  try {
+    setLoading(true);
 
-      // This fetch is restored from your original code
-      const { data: vendorData, error: vendorError } = await supabase
-        .from('vendors')
-        .select('*')
-        .order('created_at', { ascending: false });
+    // Vendor applications
+    const { data: applicationData, error: applicationError } = await supabase
+      .from('vendor_applications')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (applicationError) throw applicationError;
 
-      if (vendorError) throw vendorError;
+    const { data: reviewData, error: reviewError } = await supabase
+      .from('customer_reviews')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (reviewError) throw reviewError;
 
-      // Fetch reviews
-      const { data: reviewData, error: reviewError } = await supabase
-        .from('customer_reviews')
-        .select('*')
-        .order('created_at', { ascending: false });
+    // Marketplace products
+    const { data: marketplaceData, error: marketplaceError } = await supabase
+      .from('marketplace')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (marketplaceError) throw marketplaceError;
 
-      if (reviewError) throw reviewError;
+    setVendors(applicationData || []);
+    setReviews(reviewData || []);
+    setMarketplaceItems(marketplaceData || []);
+  } catch (error) {
+    console.error('Error fetching data:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
-      // Use applications as the primary data source
-      setVendors(applicationData || []);
-      setReviews(reviewData || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
   // --- END OF RESTORED FUNCTION ---
 
   const updateVendorStatus = async (vendorId: string, status: 'approved' | 'rejected', reason?: string) => {
@@ -96,21 +96,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   };
 
   const stats = {
-    total: vendors.length,
-    pending: vendors.filter(v => v.status === 'pending').length,
-    approved: vendors.filter(v => v.status === 'approved').length,
-    rejected: vendors.filter(v => v.status === 'rejected').length,
-    guides: vendors.filter(v => v.service_type === 'guide' && v.status === 'approved').length,
-    marketplace: vendors.filter(v => v.service_type === 'marketplace' && v.status === 'approved').length,
-    avgRating: reviews.length > 0 
-      ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
-      : '0'
-  };
-  
-  const processedApplications = stats.approved + stats.rejected;
-  const approvalRate = processedApplications > 0 
-    ? Math.round((stats.approved / processedApplications) * 100) 
-    : 0;
+  total: vendors.length,
+  pending: vendors.filter(v => v.status === 'pending').length,
+  approved: vendors.filter(v => v.status === 'approved').length,
+  rejected: vendors.filter(v => v.status === 'rejected').length,
+  guides: vendors.filter(v => v.service_type === 'guide' && v.status === 'approved').length,
+  marketplaceVendors: vendors.filter(v => v.service_type === 'marketplace' && v.status === 'approved').length,
+
+  // Marketplace table stats
+  marketplaceTotal: marketplaceItems.length,
+  marketplacePending: marketplaceItems.filter(m => m.status === 'pending').length,
+  marketplaceApproved: marketplaceItems.filter(m => m.status === 'approved').length,
+  marketplaceRejected: marketplaceItems.filter(m => m.status === 'rejected').length,
+
+  avgRating: reviews.length > 0 
+    ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
+    : '0'
+};
+
+const processedApplications = stats.approved + stats.rejected;
+const approvalRate = processedApplications > 0 
+  ? Math.round((stats.approved / processedApplications) * 100) 
+  : 0;
+
+const processedMarketplace = stats.marketplaceApproved + stats.marketplaceRejected;
+const marketplaceApprovalRate = processedMarketplace > 0
+  ? Math.round((stats.marketplaceApproved / processedMarketplace) * 100)
+  : 0;
+
 
   const Sidebar = () => (
     <div className="bg-white shadow-xl h-full flex flex-col">
@@ -125,6 +138,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           { id: 'pending', label: 'Pending Applications', icon: Clock },
           { id: 'guides', label: 'Tour Guides', icon: Users },
           { id: 'marketplace', label: 'Marketplace', icon: Users },
+          { id: 'marketplaceApproval', label: 'Marketplace Approvals', icon: CheckCircle },
         ].map(item => {
           const Icon = item.icon;
           return (
@@ -153,92 +167,261 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       </div>
     </div>
   );
-  
+  const MarketplaceApprovals = () => (
+  <div className="p-6">
+    <h1 className="text-2xl font-bold text-gray-900 mb-6">Pending Marketplace Items</h1>
+    <div className="space-y-6">
+      {marketplaceItems.filter(item => item.status === 'pending').map((item) => (
+        <div key={item.id} className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900">{item.name}</h3>
+              <p className="text-gray-600">{item.category} • {item.type}</p>
+              <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm mt-2">
+                {item.type}
+              </span>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-gray-500">Submitted</div>
+              <div className="text-sm font-medium">
+                {new Date(item.created_at).toLocaleDateString()}
+              </div>
+            </div>
+          </div>
+
+          {item.image_path && (
+            <img
+              src={item.image_path}
+              alt={item.name}
+              className="w-32 h-32 object-cover rounded-lg mb-4"
+            />
+          )}
+
+          <p className="text-gray-700 mb-4">{item.description}</p>
+
+          <div className="flex space-x-3">
+            <button
+              onClick={async () => {
+                const { error } = await supabase
+                  .from('marketplace')
+                  .update({ status: 'approved' })
+                  .eq('id', item.id);
+                if (!error) fetchData();
+              }}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" /> Approve
+            </button>
+            <button
+              onClick={async () => {
+                const { error } = await supabase
+                  .from('marketplace')
+                  .update({ status: 'rejected' })
+                  .eq('id', item.id);
+                if (!error) fetchData();
+              }}
+              className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <XCircle className="w-4 h-4 mr-2" /> Reject
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {marketplaceItems.filter(item => item.status === 'pending').length === 0 && (
+        <div className="text-center py-12">
+          <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <div className="text-gray-500">No pending marketplace items</div>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+const MarketplaceList = () => (
+  <div className="p-6">
+    <h1 className="text-2xl font-bold text-gray-900 mb-6">
+      Approved Marketplace Products
+    </h1>
+    <div className="space-y-6">
+      {marketplaceItems.filter(item => item.status === 'approved').map((item) => (
+        <div key={item.id} className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900">{item.name}</h3>
+              <p className="text-gray-600">{item.category} • {item.type}</p>
+              <div className="flex items-center mt-2">
+                <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                <span className="ml-1 text-sm font-medium">{item.rating?.toFixed(1) || 0}/5</span>
+                <span className="ml-2 text-sm text-gray-500">
+                  ({item.reviews || 0} reviews)
+                </span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-gray-500">Approved</div>
+              <div className="text-sm font-medium">
+                {new Date(item.updated_at).toLocaleDateString()}
+              </div>
+            </div>
+          </div>
+
+          {item.image_path && (
+            <img
+              src={item.image_path}
+              alt={item.name}
+              className="w-32 h-32 object-cover rounded-lg mb-4"
+            />
+          )}
+
+          <p className="text-gray-700 mb-2">{item.description}</p>
+          <p className="text-gray-900 font-semibold">₹{item.price}</p>
+          {item.original_price && (
+            <p className="text-gray-500 line-through text-sm">₹{item.original_price}</p>
+          )}
+        </div>
+      ))}
+
+      {marketplaceItems.filter(item => item.status === 'approved').length === 0 && (
+        <div className="text-center py-12">
+          <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <div className="text-gray-500">No approved marketplace products yet</div>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+
   const DashboardView = () => (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard Overview</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Total Applications */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex items-center justify-between mb-2">
+  <div className="p-6">
+    <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard Overview</h1>
+
+    {/* High-level Applications Overview */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Total Applications */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+          <Users className="w-8 h-8 text-blue-500" />
+        </div>
+        <div className="text-gray-600">Total Applications</div>
+      </div>
+
+      {/* Pending */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+          <Clock className="w-8 h-8 text-yellow-500" />
+        </div>
+        <div className="text-gray-600">Pending Review</div>
+      </div>
+
+      {/* Approved */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+          <CheckCircle className="w-8 h-8 text-green-500" />
+        </div>
+        <div className="text-gray-600">Approved Guides</div>
+      </div>
+
+      {/* Avg Rating */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-2xl font-bold text-amber-600">{stats.avgRating}</div>
+          <Star className="w-8 h-8 text-amber-500" />
+        </div>
+        <div className="text-gray-600">Average Guide Rating</div>
+      </div>
+    </div>
+
+    {/* Guides Section */}
+    <h2 className="text-xl font-semibold mb-4">Tour Guides Statistics</h2>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+      {/* Guides Overview */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Guides Overview</h3>
+        <div className="grid grid-cols-2 gap-6">
+          <div>
             <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-            <Users className="w-8 h-8 text-blue-500" />
+            <div className="text-gray-600">Total Applications</div>
           </div>
-          <div className="text-gray-600">Total Applications</div>
-        </div>
-        {/* Pending */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex items-center justify-between mb-2">
+          <div>
             <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-            <Clock className="w-8 h-8 text-yellow-500" />
+            <div className="text-gray-600">Pending</div>
           </div>
-          <div className="text-gray-600">Pending Review</div>
-        </div>
-        {/* Approved */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex items-center justify-between mb-2">
+          <div>
             <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
-            <CheckCircle className="w-8 h-8 text-green-500" />
+            <div className="text-gray-600">Approved</div>
           </div>
-          <div className="text-gray-600">Approved</div>
-        </div>
-        {/* Avg Rating */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-2xl font-bold text-amber-600">{stats.avgRating}</div>
-            <Star className="w-8 h-8 text-amber-500" />
+          <div>
+            <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
+            <div className="text-gray-600">Rejected</div>
           </div>
-          <div className="text-gray-600">Avg Rating</div>
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Service Types */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Approved Service Types</h3>
-           <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span>Tour Guides</span>
-              <div className="flex items-center">
-                <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                  <div 
-                    className="bg-green-500 h-2 rounded-full" 
-                    style={{ width: `${stats.approved > 0 ? (stats.guides / stats.approved) * 100 : 0}%` }}
-                  ></div>
-                </div>
-                <span className="text-sm font-medium">{stats.guides}</span>
-              </div>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Marketplace Vendors</span>
-              <div className="flex items-center">
-                <div className="w-32 bg-gray-200 rounded-full h-2 mr-2">
-                  <div 
-                    className="bg-blue-500 h-2 rounded-full" 
-                    style={{ width: `${stats.approved > 0 ? (stats.marketplace / stats.approved) * 100 : 0}%` }}
-                  ></div>
-                </div>
-                <span className="text-sm font-medium">{stats.marketplace}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* Approval Rate */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Approval Rate</h3>
-          <div className="text-center">
-            <div className="text-4xl font-bold text-green-600 mb-2">{approvalRate}%</div>
-            <div className="text-gray-600">Of Processed Applications</div>
-            <div className="mt-4 bg-gray-200 rounded-full h-3">
-              <div 
-                className="bg-green-500 h-3 rounded-full transition-all duration-500" 
-                style={{ width: `${approvalRate}%` }}
-              ></div>
-            </div>
+
+      {/* Guides Approval Rate */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Guides Approval Rate</h3>
+        <div className="text-center">
+          <div className="text-4xl font-bold text-green-600 mb-2">{approvalRate}%</div>
+          <div className="text-gray-600">Of Processed Applications</div>
+          <div className="mt-4 bg-gray-200 rounded-full h-3">
+            <div
+              className="bg-green-500 h-3 rounded-full transition-all duration-500"
+              style={{ width: `${approvalRate}%` }}
+            ></div>
           </div>
         </div>
       </div>
     </div>
-  );
+
+    {/* Marketplace Section */}
+    <h2 className="text-xl font-semibold mb-4">Marketplace Statistics</h2>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Marketplace Overview */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Marketplace Overview</h3>
+        <div className="grid grid-cols-2 gap-6">
+          <div>
+            <div className="text-2xl font-bold text-gray-900">{stats.marketplaceTotal}</div>
+            <div className="text-gray-600">Total Products</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-yellow-600">{stats.marketplacePending}</div>
+            <div className="text-gray-600">Pending</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-green-600">{stats.marketplaceApproved}</div>
+            <div className="text-gray-600">Approved</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-red-600">{stats.marketplaceRejected}</div>
+            <div className="text-gray-600">Rejected</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Marketplace Approval Rate */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Marketplace Approval Rate</h3>
+        <div className="text-center">
+          <div className="text-4xl font-bold text-green-600 mb-2">{marketplaceApprovalRate}%</div>
+          <div className="text-gray-600">Of Processed Products</div>
+          <div className="mt-4 bg-gray-200 rounded-full h-3">
+            <div
+              className="bg-green-500 h-3 rounded-full transition-all duration-500"
+              style={{ width: `${marketplaceApprovalRate}%` }}
+            ></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 
   const PendingApplications = () => (
     <div className="p-6">
@@ -370,7 +553,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         {activeTab === 'dashboard' && <DashboardView />}
         {activeTab === 'pending' && <PendingApplications />}
         {activeTab === 'guides' && <VendorsList serviceType="guide" />}
-        {activeTab === 'marketplace' && <VendorsList serviceType="marketplace" />}
+        {activeTab === 'marketplace' && <MarketplaceList />} {/* ✅ updated */}
+         {activeTab === 'marketplaceApproval' && <MarketplaceApprovals />} {/* ✅ new */}
       </div>
     </div>
   );

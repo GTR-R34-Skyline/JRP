@@ -178,7 +178,7 @@ const VendorRegistration: React.FC = () => {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
                 <option value="guide">Tour Guide</option>
-                <option value="marketplace">Marketplace Vendor</option>
+                
               </select>
             </div>
 
@@ -302,12 +302,21 @@ const VendorRegistration: React.FC = () => {
                 Languages Spoken
               </label>
               <input
-                type="text"
-                value={formData.languages.join(', ')}
-                onChange={(e) => handleArrayInput('languages', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                placeholder="Hindi, English, Santhali (comma separated)"
-              />
+  type="text"
+  value={formData.languagesString || ""}
+  onChange={(e) => {
+    const str = e.target.value;
+    setFormData({
+      ...formData,
+      languagesString: str,
+      languages: str.split(",").map((l) => l.trim()).filter(Boolean)
+    });
+  }}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+
+  placeholder="Hindi, English, Santhali"
+/>
+
             </div>
           </div>
 

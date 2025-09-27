@@ -44,10 +44,12 @@ const Layout: React.FC<LayoutProps> = ({ children, className = '' }) => {
             {/* Right Side: Navigation & Admin Button */}
             <div className="flex items-center space-x-6">
                 <nav className="hidden md:flex items-center space-x-6 text-green-100">
-                    <Link to="/" className="hover:text-white font-medium transition-colors">Home</Link>
-                    <Link to="/vendor/register" className="hover:text-white font-medium transition-colors">Become a Vendor</Link>
-                    <Link to="/vendor/dashboard" className="hover:text-white font-medium transition-colors">Vendor Dashboard</Link>
+                  <Link to="/" className="hover:text-white font-medium transition-colors">Home</Link>
+                  <Link to="/vendor/register" className="hover:text-white font-medium transition-colors">Become a Guide</Link>
+                  <Link to="/vendor/dashboard" className="hover:text-white font-medium transition-colors">Vendor Dashboard</Link>
+                  <Link to="/marketplace/register" className="hover:text-white font-medium transition-colors">Become a Vendor</Link> 
                 </nav>
+
                 <Link 
                     to="/admin/login" 
                     className="bg-white text-green-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-50 transition-colors"
