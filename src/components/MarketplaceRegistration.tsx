@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, User, MapPin, FileText, Upload, CheckCircle, DollarSign, Image, Tag, Truck } from 'lucide-react';
+import { Package, User, MapPin, FileText,  CheckCircle, DollarSign, Image, Tag, Truck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const MarketplaceRegistration: React.FC = () => {
@@ -439,7 +439,7 @@ const MarketplaceRegistration: React.FC = () => {
 
           <div className="flex justify-end space-x-4 pt-6">
             <button
-              type="su  bmit"
+              type="submit"
               disabled={loading}
               className="bg-gradient-to-r from-green-600 to-amber-600 text-white px-8 py-3 rounded-lg font-semibold hover:from-green-700 hover:to-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >

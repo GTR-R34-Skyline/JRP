@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
-import { User, Phone, Mail, MapPin, FileText, Upload, CheckCircle, DollarSign, Image } from 'lucide-react';
+import { User, Phone, Mail, MapPin, FileText, CheckCircle, DollarSign, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+
+const BUCKET = 'vendor-images'; // bucket name in Supabase
+const FOLDER = 'profiles';      // folder inside bucket
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 
 const VendorRegistration: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -13,68 +18,150 @@ const VendorRegistration: React.FC = () => {
     languages: [] as string[],
     experience_years: '',
     location: '',
-    cost_per_day: '', // Added missing field
-    cost_per_hour: '', // Added missing field
-    profile_image_url: '' // Added missing field
+    cost_per_day: '',
+    cost_per_hour: ''
   });
-  
+
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleArrayInput = (field: 'specialties' | 'languages', value: string) => {
-    const items = value.split(',').map(item => item.trim()).filter(item => item);
-    setFormData(prev => ({
-      ...prev,
-      [field]: items
-    }));
+    const items = value.split(',').map(item => item.trim()).filter(Boolean);
+    setFormData(prev => ({ ...prev, [field]: items }));
   };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setError('');
+    if (!file) {
+      setImageFile(null);
+      setImagePreview('');
+      return;
+    }
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setError('Unsupported file type. Use PNG, JPG, WebP or GIF.');
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File too large. Max 5 MB.');
+      return;
+    }
+
+    setImageFile(file);
+
+    // show preview
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const uploadImageAndGetUrl = async (file: File, guideName: string): Promise<string | null> => {
+  try {
+    const ext = file.name.split('.').pop();
+    const safeName = guideName
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")        // replace spaces with underscores
+      .replace(/[^a-z0-9_]/g, ""); // remove invalid characters
+
+    const filePath = `${FOLDER}/${safeName}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(filePath, file, { upsert: true }); // overwrite if same name
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+    return data.publicUrl;
+  } catch (err) {
+    console.error("Error uploading image:", err);
+    return null;
+  }
+};
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    try {
-      // Create a clean data object for submission
-      const applicationData = {
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        service_type: formData.service_type,
-        description: formData.description.trim(),
-        specialties: formData.specialties,
-        languages: formData.languages,
-        experience_years: formData.experience_years ? parseInt(formData.experience_years) : null,
-        location: formData.location.trim(),
-        cost_per_day: formData.cost_per_day ? parseFloat(formData.cost_per_day) : null,
-        cost_per_hour: formData.cost_per_hour ? parseFloat(formData.cost_per_hour) : null,
-        profile_image_url: formData.profile_image_url.trim(),
-        status: 'pending'
-      };
-
-      const { error: insertError } = await supabase
-        .from('vendor_applications')
-        .insert([applicationData]);
-
-      if (insertError) throw insertError;
-
-      setSubmitted(true);
-    } catch (error) {
-      console.error('Error submitting application:', error);
-      setError('Failed to submit application. Please try again.');
-    } finally {
+  try {
+    if (!imageFile) {
+      setError('Please upload a profile image.');
       setLoading(false);
+      return;
     }
-  };
+
+    // Upload image using guide's name as the filename
+    const uploadedUrl = await uploadImageAndGetUrl(imageFile, formData.name);
+    if (!uploadedUrl) throw new Error('Image upload failed.');
+
+    // Build application object
+    const applicationData = {
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      service_type: formData.service_type,
+      description: formData.description.trim(),
+      specialties: formData.specialties,
+      languages: formData.languages,
+      experience_years: formData.experience_years
+        ? parseInt(formData.experience_years)
+        : null,
+      location: formData.location.trim(),
+      cost_per_day: formData.cost_per_day
+        ? parseFloat(formData.cost_per_day)
+        : null,
+      cost_per_hour: formData.cost_per_hour
+        ? parseFloat(formData.cost_per_hour)
+        : null,
+      profile_image_url: uploadedUrl,
+      status: 'pending'
+    };
+
+    const { error: insertError } = await supabase
+      .from('vendor_applications')
+      .insert([applicationData]);
+
+    if (insertError) throw insertError;
+
+    // Reset form
+    setSubmitted(true);
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      service_type: 'guide',
+      description: '',
+      specialties: [],
+      languages: [],
+      experience_years: '',
+      location: '',
+      cost_per_day: '',
+      cost_per_hour: ''
+    });
+    setImageFile(null);
+    setImagePreview('');
+  } catch (err) {
+    console.error('Error submitting application:', err);
+    setError('Failed to submit application. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   if (submitted) {
     return (
@@ -85,17 +172,8 @@ const VendorRegistration: React.FC = () => {
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Application Submitted!</h2>
           <p className="text-gray-600 mb-6">
-            Thank you for your interest in joining our tourism network. Your application has been submitted 
-            and is now under review. We'll notify you once it's processed.
+            Thank you for your interest. Your application has been submitted and will be reviewed.
           </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-blue-800 text-sm">
-              <strong>What's next?</strong><br />
-              • Our team will review your application<br />
-              • You'll receive an email notification with the decision<br />
-              • If approved, you'll be listed in our vendor directory
-            </p>
-          </div>
         </div>
       </div>
     );
@@ -117,7 +195,7 @@ const VendorRegistration: React.FC = () => {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* ... other form fields ... */}
+            {/* Full Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <User className="w-4 h-4 inline mr-2" />
@@ -134,6 +212,7 @@ const VendorRegistration: React.FC = () => {
               />
             </div>
 
+            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Mail className="w-4 h-4 inline mr-2" />
@@ -150,6 +229,7 @@ const VendorRegistration: React.FC = () => {
               />
             </div>
 
+            {/* Phone */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Phone className="w-4 h-4 inline mr-2" />
@@ -166,6 +246,7 @@ const VendorRegistration: React.FC = () => {
               />
             </div>
 
+            {/* Service Type */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Service Type *
@@ -182,6 +263,7 @@ const VendorRegistration: React.FC = () => {
               </select>
             </div>
 
+            {/* Location */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <MapPin className="w-4 h-4 inline mr-2" />
@@ -197,6 +279,7 @@ const VendorRegistration: React.FC = () => {
               />
             </div>
 
+            {/* Experience */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Years of Experience
@@ -213,7 +296,7 @@ const VendorRegistration: React.FC = () => {
               />
             </div>
 
-            {/* ** NEW REQUIRED FIELDS ** */}
+            {/* Cost Per Day */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <DollarSign className="w-4 h-4 inline mr-2" />
@@ -231,6 +314,7 @@ const VendorRegistration: React.FC = () => {
               />
             </div>
 
+            {/* Cost Per Hour */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <DollarSign className="w-4 h-4 inline mr-2" />
@@ -248,25 +332,30 @@ const VendorRegistration: React.FC = () => {
               />
             </div>
 
-            <div>
+            {/* Profile Image Upload */}
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Image className="w-4 h-4 inline mr-2" />
-                Profile Image URL
+                <ImageIcon className="w-4 h-4 inline mr-2" />
+                Profile Image *
               </label>
               <input
-                type="url"
-                name="profile_image_url"
+                type="file"
+                accept="image/*"
                 required
-                value={formData.profile_image_url}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                placeholder="https://example.com/image.jpg"
+                onChange={handleImageChange}
+                className="px-3 py-2 border border-gray-300 rounded-lg"
               />
+              {imagePreview && (
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="mt-3 w-32 h-32 object-cover rounded-lg border"
+                />
+              )}
             </div>
-
-            {/* ... end of new fields ... */}
           </div>
 
+          {/* Description */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <FileText className="w-4 h-4 inline mr-2" />
@@ -283,6 +372,7 @@ const VendorRegistration: React.FC = () => {
             />
           </div>
 
+          {/* Specialties & Languages */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -301,25 +391,11 @@ const VendorRegistration: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Languages Spoken
               </label>
-              <input
-  type="text"
-  value={formData.languagesString || ""}
-  onChange={(e) => {
-    const str = e.target.value;
-    setFormData({
-      ...formData,
-      languagesString: str,
-      languages: str.split(",").map((l) => l.trim()).filter(Boolean)
-    });
-  }}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-
-  placeholder="Hindi, English, Santhali"
-/>
-
+              <input type="text" value={formData.languagesString || ""} onChange={(e) => { const str = e.target.value; setFormData({ ...formData, languagesString: str, languages: str.split(",").map((l) => l.trim()).filter(Boolean) }); }} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Hindi, English, Santhali" />
             </div>
           </div>
 
+          {/* Submit */}
           <div className="flex justify-end space-x-4 pt-6">
             <button
               type="submit"
